@@ -141,7 +141,7 @@ g <- g + theme(axis.text.x = element_text(angle = 90))
 print(g)
 ```
 ```{r results='asis', echo=FALSE}
-print(xtable(fdaily_activity_mean))
+print(xtable(fdaily_activity_mean), type="html")
 ```
 ```{r plotting_fmean, results='asis', echo=FALSE}
 g <- ggplot(fdaily_activity_mean, aes(x=date, y=avg_steps))
@@ -151,7 +151,7 @@ g <- g + theme(axis.text.x = element_text(angle = 90))
 print(g)
 ```
 ```{r results='asis', echo=FALSE}
-print(xtable(fdaily_activity_median))
+print(xtable(fdaily_activity_median), type="html")
 ```
 
 ```{r plotting_fmedian, echo=FALSE}
