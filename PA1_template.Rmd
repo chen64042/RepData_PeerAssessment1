@@ -7,19 +7,179 @@ output:
 
 
 ## Loading and preprocessing the data
+Download, unzip and read the file. To save some time, I first check whether the file exists and whether the object has been defined (i.e. file read).
 
+Once the file is read. NAs are removed and data are aggregated in order to answer the following questions.
 
+```{r load_and_preprocess, warning=FALSE}
+if (!file.exists("activity.zip")) {
+    downloaded_file <- download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", destfile="activity.zip", method="curl")
+} else if (!exists("activity")) {
+    activity_file <- unzip("activity.zip")
+    activity <- read.csv(activity_file)
+}
+# removing NAs
+daily_steps <- activity[!is.na(activity$steps),]
+library(dplyr)
+# prepare data to answer the questions
+daily_activity_sum <- daily_steps %>% group_by(date) %>% summarise_each(funs(sum), steps) %>% rename(total_steps = steps)
+daily_activity_mean <- daily_steps %>% group_by(date) %>% summarise_each(funs(mean), steps) %>% rename(avg_steps = steps)
+daily_activity_median <- daily_steps %>% group_by(date) %>% summarise_each(funs(median), steps) %>% rename(median_steps = steps)
+```
 
 ## What is mean total number of steps taken per day?
+The following plots shows total steps, mean and median per day respectively.
 
+```{r plotting_sum, echo=FALSE}
+# answering questions w/o filling in missing date
+library(xtable)
+library(ggplot2)
+g <- ggplot(daily_activity_sum, aes(x=date, y=total_steps))
+g <- g + geom_histogram(fill="lightgreen", stat="identity")
+g <- g + ggtitle("Total Steps/Day") + xlab("Date") + ylab("Total Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
 
+Average Steps Per Day
+
+```{r results='asis', echo=FALSE}
+print(xtable(daily_activity_mean), type="html")
+```
+```{r plotting_mean, echo=FALSE}
+g <- ggplot(daily_activity_mean, aes(x=date, y=avg_steps))
+g <- g + geom_histogram(fill="lightblue", stat="identity")
+g <- g + ggtitle("Avg Steps/Day") + xlab("Date") + ylab("Avg Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
+
+Median Steps Per Day
+
+```{r results='asis', echo=FALSE}
+print(xtable(daily_activity_median), type="html")
+```
+```{r plotting_median, echo=FALSE}
+g <- ggplot(daily_activity_median, aes(x=date, y=median_steps))
+g <- g + geom_histogram(fill="red", stat="identity")
+g <- g + ggtitle("Median Steps/Day") + xlab("Date") + ylab("Median Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
 
 ## What is the average daily activity pattern?
+The following codes add a POSIXlt varable for plotting.
 
+```{r prepare_datetime}
+library(stringr)
+timeofday <- paste0(substr(str_pad(daily_steps$interval, 4, pad="0"), 1, 2), ":", substr(str_pad(daily_steps$interval, 4, pad="0"), 3, 4), ":00")
+daily_steps$date_interval <- paste(daily_steps$date, timeofday)
+daily_steps$date_posix <- as.POSIXlt(daily_steps$date_interval)
+```
 
+Use the setting before. Plotting the daily activity. This may take a little bit time generating if you were trying to re-create it.
+
+By reviewing the plot, you can see a significant variance on daily basis. The median is zero for the entire sample and the mean is really at the lower end.
+
+```{r plotting_interval, echo=FALSE}
+library(scales)
+interval_max_step <- daily_steps[which.max(daily_steps$steps),]
+g <- ggplot(daily_steps)
+g <- g + geom_line(aes(x=date_posix, y=steps, group=1, colour = "#2288ff"))
+g <- g + geom_line(aes(y=mean(daily_steps$steps), x=date_posix, colour = "red"))
+g <- g + geom_text(hjust=1, vjust=0, aes(y=interval_max_step$steps, x=interval_max_step$date_posix), size=5, label=paste0("max steps = ", interval_max_step$steps, "\n", format(interval_max_step$date_posix, "%m-%d %H:%M")))
+g <- g + geom_point(aes(y=interval_max_step$steps, x=interval_max_step$date_posix), shape="c", colour="red", label="max steps")
+g <- g + ggtitle("Steps/5-minute Interval") + xlab("Intervals") + ylab("Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+g <- g + scale_x_datetime(breaks = date_breaks("5 day"), labels = date_format("%m/%d"))
+g <- g + ylim(0, interval_max_step$steps+200)
+g <- g + scale_color_manual("Legends\n", labels = c("interval steps", "average steps"), values = c("#2288ff", "red"))
+print(g)
+```
 
 ## Imputing missing values
 
+NA count can be found through summary:
 
+```{r reporting_summary, results='asis', echo=FALSE}
+print(xtable(summary(activity)), type="html")
+```
+
+I filled the dataset by the following logic:
+  1. If there is no data point recorded for a particular day, median of the entire sample is assigned to fill NAs on that day.
+  2. If there are some data points recorded for that day, the median of that particular day is assigned to fill NAs on that day.
+  
+```{r fillings}
+row_count <- nrow(activity)
+
+filling_activity <- activity
+all_median <- median(filling_activity$steps, na.rm=TRUE)
+
+for (i in 1:nrow(filling_activity)) {
+    if (is.na(filling_activity$steps[i])) {
+        if (filling_activity$date[i] %in% daily_activity_median$date) {
+            dmedian <- daily_activity_median[daily_activity_median$date == fillingactivity$date[i],]$median
+            filling_activity[i,]$steps <- dmedian
+        } else {
+            filling_activity[i,]$steps <- all_median
+        }
+    }
+}
+```
+
+Because of the strategy I choose and the fact median is zero across the board. There is no impact while comparing with previous plots with NAs removed.
+
+```{r plotfillings, echo=FALSE}
+fdaily_activity_sum <- filling_activity %>% group_by(date) %>% summarise_each(funs(sum), steps) %>% rename(total_steps = steps)
+fdaily_activity_mean <- filling_activity %>% group_by(date) %>% summarise_each(funs(mean), steps) %>% rename(avg_steps = steps)
+fdaily_activity_median <- filling_activity %>% group_by(date) %>% summarise_each(funs(median), steps) %>% rename(median_steps = steps)
+
+g <- ggplot(fdaily_activity_sum, aes(x=date, y=total_steps))
+g <- g + geom_histogram(fill="lightgreen", stat="identity")
+g <- g + ggtitle("Total Steps/Day") + xlab("Date") + ylab("Total Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
+```{r results='asis', echo=FALSE}
+print(xtable(fdaily_activity_mean))
+```
+```{r plotting_fmean, results='asis', echo=FALSE}
+g <- ggplot(fdaily_activity_mean, aes(x=date, y=avg_steps))
+g <- g + geom_histogram(fill="lightblue", stat="identity")
+g <- g + ggtitle("Avg Steps/Day") + xlab("Date") + ylab("Avg Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
+```{r results='asis', echo=FALSE}
+print(xtable(fdaily_activity_median))
+```
+
+```{r plotting_fmedian, echo=FALSE}
+g <- ggplot(fdaily_activity_median, aes(x=date, y=median_steps))
+g <- g + geom_histogram(fill="red", stat="identity")
+g <- g + ggtitle("Median Steps/Day") + xlab("Date") + ylab("Median Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+print(g)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+It seems the data shows more steps were taken during weekdays vs. weekends.
+
+```{r plotting_weekday_and_weekend, echo=FALSE}
+library(stringr)
+timeofday <- paste0(substr(str_pad(filling_activity$interval, 4, pad="0"), 1, 2), ":", substr(str_pad(filling_activity$interval, 4, pad="0"), 3, 4), ":00")
+filling_activity$date_interval <- paste(filling_activity$date, timeofday)
+filling_activity$date_posix <- as.POSIXlt(filling_activity$date_interval)
+filling_activity$dayofweek <- as.factor(weekdays(filling_activity$date_posix))
+filling_activity$isweekend <- FALSE
+filling_activity[which(filling_activity$dayofweek %in% c("Saturday", "Sunday")),]$isweekend <- TRUE
+
+g <- ggplot(filling_activity)
+g <- g + geom_line(aes(x=date_posix, y=steps, group=isweekend, colour = isweekend))
+g <- g + ggtitle("Steps/5-minute Interval Weekends") + xlab("Intervals") + ylab("Steps")
+g <- g + theme(axis.text.x = element_text(angle = 90))
+g <- g + scale_x_datetime(breaks = date_breaks("5 day"), labels = date_format("%m/%d"))
+g <- g + scale_color_manual("Legends\n", labels = c("Weekend", "Weekday"), values = c("blue", "red"))
+print(g)
+```
